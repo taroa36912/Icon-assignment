@@ -512,6 +512,90 @@ func TestItemUsecase_UpdateItem(t *testing.T) {
             },
             expectError: false,
         },
+		// 💡 新規追加: 複数フィールドの更新テスト
+        {
+            name: "正常系: name, brand, purchase_priceをすべて更新",
+            id:   1,
+            input: UpdateItemInput{
+                Name:          strPtr("新しいアイテム名"),
+                Brand:         strPtr("新しいブランド"),
+                PurchasePrice: intPtr(2500000),
+            },
+            setupMock: func(mockRepo *MockItemRepository) {
+                existingItem := &entity.Item{
+                    ID: 1, Name: "ロレックス", Category: "時計", Brand: "ROLEX", PurchasePrice: 1500000,
+                    PurchaseDate: "2023-01-01", CreatedAt: time.Now(), UpdatedAt: time.Now(),
+                }
+                mockRepo.On("FindByID", mock.Anything, int64(1)).Return(existingItem, nil).Once()
+
+                updatedItem := *existingItem
+                updatedItem.Name = "新しいアイテム名"
+                updatedItem.Brand = "新しいブランド"
+                updatedItem.PurchasePrice = 2500000
+                mockRepo.On("Update", mock.Anything, mock.AnythingOfType("*entity.Item")).Return(&updatedItem, nil).Once()
+            },
+            expectError: false,
+        },
+        // 💡 新規追加: nameのみ更新テスト
+        {
+            name: "正常系: nameのみを更新",
+            id:   1,
+            input: UpdateItemInput{
+                Name: strPtr("新しいアイテム名"),
+            },
+            setupMock: func(mockRepo *MockItemRepository) {
+                existingItem := &entity.Item{
+                    ID: 1, Name: "ロレックス", Category: "時計", Brand: "ROLEX", PurchasePrice: 1500000,
+                    PurchaseDate: "2023-01-01", CreatedAt: time.Now(), UpdatedAt: time.Now(),
+                }
+                mockRepo.On("FindByID", mock.Anything, int64(1)).Return(existingItem, nil).Once()
+
+                updatedItem := *existingItem
+                updatedItem.Name = "新しいアイテム名"
+                mockRepo.On("Update", mock.Anything, mock.AnythingOfType("*entity.Item")).Return(&updatedItem, nil).Once()
+            },
+            expectError: false,
+        },
+        // 💡 新規追加: brandのみ更新テスト
+        {
+            name: "正常系: brandのみを更新",
+            id:   1,
+            input: UpdateItemInput{
+                Brand: strPtr("新しいブランド"),
+            },
+            setupMock: func(mockRepo *MockItemRepository) {
+                existingItem := &entity.Item{
+                    ID: 1, Name: "ロレックス", Category: "時計", Brand: "ROLEX", PurchasePrice: 1500000,
+                    PurchaseDate: "2023-01-01", CreatedAt: time.Now(), UpdatedAt: time.Now(),
+                }
+                mockRepo.On("FindByID", mock.Anything, int64(1)).Return(existingItem, nil).Once()
+
+                updatedItem := *existingItem
+                updatedItem.Brand = "新しいブランド"
+                mockRepo.On("Update", mock.Anything, mock.AnythingOfType("*entity.Item")).Return(&updatedItem, nil).Once()
+            },
+            expectError: false,
+        },
+        // 💡 新規追加: purchase_priceのみ更新テスト
+        {
+            name: "正常系: purchase_priceのみを更新",
+            id:   1,
+            input: UpdateItemInput{
+                PurchasePrice: intPtr(2500000),
+            },
+            setupMock: func(mockRepo *MockItemRepository) {
+                existingItem := &entity.Item{
+                    ID: 1, Name: "ロレックス", Category: "時計", Brand: "ROLEX", PurchasePrice: 1500000,
+                    PurchaseDate: "2023-01-01", CreatedAt: time.Now(), UpdatedAt: time.Now(),
+                }
+                mockRepo.On("FindByID", mock.Anything, int64(1)).Return(existingItem, nil).Once()
+
+                updatedItem := *existingItem
+                updatedItem.PurchasePrice = 2500000
+                mockRepo.On("Update", mock.Anything, mock.AnythingOfType("*entity.Item")).Return(&updatedItem, nil).Once()
+            },
+            expectError: false,
+        },
         {
             name: "異常系: 存在しないID",
             id:   999,
