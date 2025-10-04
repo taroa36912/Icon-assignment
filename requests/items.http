@@ -1,0 +1,40 @@
+### Get all items
+GET http://localhost:8080/items
+
+### Get an item by ID
+# @prompt id 1
+GET http://localhost:8080/items/1
+
+### Health check
+GET http://localhost:8080/health
+
+### Create a new item (POST)
+POST http://localhost:8080/items
+Content-Type: application/json
+
+{
+    "name": "ルイ・ヴィトン スピーディ",
+    "category": "バッグ",
+    "brand": "LOUIS VUITTON",
+    "purchase_price": 200000,
+    "purchase_date": "2024-05-20"
+}
+
+### Get category summary
+GET http://localhost:8080/items/summary
+
+
+### Delete an item
+# @prompt id 1
+DELETE http://localhost:8080/items/1
+
+
+### Update an item (PATCH)
+# @prompt id 2
+PATCH http://localhost:8080/items/2
+Content-Type: application/json
+
+{
+    "name": "ロレックス デイトナ コンビ",
+    "purchase_price": 1800000
+}
