@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"Aicon-assignment/internal/domain/entity"
 	domainErrors "Aicon-assignment/internal/domain/errors"
@@ -13,6 +14,7 @@ type ItemUsecase interface {
 	GetItemByID(ctx context.Context, id int64) (*entity.Item, error)
 	CreateItem(ctx context.Context, input CreateItemInput) (*entity.Item, error)
 	DeleteItem(ctx context.Context, id int64) error
+	UpdateItem(ctx context.Context, id int64, input UpdateItemInput) (*entity.Item, error)
 	GetCategorySummary(ctx context.Context) (*CategorySummary, error)
 }
 
@@ -22,6 +24,15 @@ type CreateItemInput struct {
 	Brand         string `json:"brand"`
 	PurchasePrice int    `json:"purchase_price"`
 	PurchaseDate  string `json:"purchase_date"`
+}
+
+// UpdateItemInput is the input for updating an existing item.
+// Fields are pointers to allow for partial updates (PATCH requests).
+// If a field is nil, it means the client did not provide it, and it should not be updated.
+type UpdateItemInput struct {
+    Name           *string `json:"name"`
+    Brand          *string `json:"brand"`
+    PurchasePrice  *int    `json:"purchase_price"`
 }
 
 type CategorySummary struct {
@@ -104,6 +115,48 @@ func (u *itemUsecase) DeleteItem(ctx context.Context, id int64) error {
 	}
 
 	return nil
+}
+
+
+// 💡 新規追加: UpdateItemメソッド
+func (u *itemUsecase) UpdateItem(ctx context.Context, id int64, input UpdateItemInput) (*entity.Item, error) {
+    if id <= 0 {
+        return nil, domainErrors.ErrInvalidInput
+    }
+
+    // 1. データベースから既存のアイテムを取得
+    existingItem, err := u.itemRepo.FindByID(ctx, id)
+    if err != nil {
+        // FindByIDがNotFoundエラーを返す場合、そのまま伝播
+        if domainErrors.IsNotFoundError(err) {
+            return nil, domainErrors.ErrItemNotFound
+        }
+        return nil, fmt.Errorf("failed to retrieve existing item: %w", err)
+    }
+
+    // 2. 更新対象のフィールドを上書き
+    // inputのポインタがnilでない場合のみ更新
+    if input.Name != nil {
+        existingItem.Name = *input.Name
+    }
+    if input.Brand != nil {
+        existingItem.Brand = *input.Brand
+    }
+    if input.PurchasePrice != nil {
+        existingItem.PurchasePrice = *input.PurchasePrice
+    }
+    
+    // 3. 更新日時を現在時刻に設定
+    existingItem.UpdatedAt = time.Now()
+
+    // 4. 更新されたアイテムをリポジトリに渡し、データベースを更新
+    updatedItem, err := u.itemRepo.Update(ctx, existingItem)
+    if err != nil {
+        // リポジトリからのエラーを適切にラップして返す
+        return nil, fmt.Errorf("failed to update item: %w", err)
+    }
+
+    return updatedItem, nil
 }
 
 func (u *itemUsecase) GetCategorySummary(ctx context.Context) (*CategorySummary, error) {

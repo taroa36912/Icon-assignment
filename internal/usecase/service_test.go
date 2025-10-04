@@ -3,6 +3,8 @@ package usecase
 import (
 	"context"
 	"testing"
+	"time"
+
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -50,6 +52,16 @@ func (m *MockItemRepository) GetSummaryByCategory(ctx context.Context) (map[stri
 	}
 	return args.Get(0).(map[string]int), args.Error(1)
 }
+
+// 💡 新規追加: MockItemRepository に Update メソッドを実装
+func (m *MockItemRepository) Update(ctx context.Context, item *entity.Item) (*entity.Item, error) {
+    args := m.Called(ctx, item)
+    if args.Get(0) == nil {
+        return nil, args.Error(1)
+    }
+    return args.Get(0).(*entity.Item), args.Error(1)
+}
+
 
 func TestNewItemUsecase(t *testing.T) {
 	mockRepo := new(MockItemRepository)
@@ -446,4 +458,146 @@ func TestItemUsecase_GetCategorySummary(t *testing.T) {
 			mockRepo.AssertExpectations(t)
 		})
 	}
+}
+
+func TestItemUsecase_UpdateItem(t *testing.T) {
+    // 💡 既存のテストケースに加えて、UpdateItem のテストケースを定義
+    tests := []struct {
+        name        string
+        id          int64
+        input       UpdateItemInput
+        setupMock   func(*MockItemRepository)
+        expectError bool
+        expectedErr error
+    }{
+        {
+            name: "正常系: nameとbrandを更新",
+            id:   1,
+            input: UpdateItemInput{
+                Name:  strPtr("更新された時計名"),
+                Brand: strPtr("更新されたブランド"),
+            },
+            setupMock: func(mockRepo *MockItemRepository) {
+                // データベースから既存アイテムを取得する FindByID をモック
+                existingItem := &entity.Item{
+                    ID: 1, Name: "ロレックス", Category: "時計", Brand: "ROLEX", PurchasePrice: 1500000,
+                    PurchaseDate: "2023-01-01", CreatedAt: time.Now(), UpdatedAt: time.Now(),
+                }
+                mockRepo.On("FindByID", mock.Anything, int64(1)).Return(existingItem, nil).Once()
+
+                // 更新されたアイテムを返す Update をモック
+                updatedItem := *existingItem
+                updatedItem.Name = "更新された時計名"
+                updatedItem.Brand = "更新されたブランド"
+                mockRepo.On("Update", mock.Anything, mock.AnythingOfType("*entity.Item")).Return(&updatedItem, nil).Once()
+            },
+            expectError: false,
+        },
+        {
+            name: "正常系: purchase_priceのみを更新",
+            id:   1,
+            input: UpdateItemInput{
+                PurchasePrice: intPtr(2000000),
+            },
+            setupMock: func(mockRepo *MockItemRepository) {
+                existingItem := &entity.Item{
+                    ID: 1, Name: "ロレックス", Category: "時計", Brand: "ROLEX", PurchasePrice: 1500000,
+                    PurchaseDate: "2023-01-01", CreatedAt: time.Now(), UpdatedAt: time.Now(),
+                }
+                mockRepo.On("FindByID", mock.Anything, int64(1)).Return(existingItem, nil).Once()
+
+                updatedItem := *existingItem
+                updatedItem.PurchasePrice = 2000000
+                mockRepo.On("Update", mock.Anything, mock.AnythingOfType("*entity.Item")).Return(&updatedItem, nil).Once()
+            },
+            expectError: false,
+        },
+        {
+            name: "異常系: 存在しないID",
+            id:   999,
+            input: UpdateItemInput{
+                Name: strPtr("新しい名前"),
+            },
+            setupMock: func(mockRepo *MockItemRepository) {
+                mockRepo.On("FindByID", mock.Anything, int64(999)).Return((*entity.Item)(nil), domainErrors.ErrItemNotFound).Once()
+                // Updateメソッドは呼ばれない
+            },
+            expectError: true,
+            expectedErr: domainErrors.ErrItemNotFound,
+        },
+        {
+            name: "異常系: 無効なID",
+            id:   0,
+            input: UpdateItemInput{
+                Name: strPtr("新しい名前"),
+            },
+            setupMock: func(mockRepo *MockItemRepository) {
+                // 何もモックしない（FindByIDが呼ばれないことを確認するため）
+            },
+            expectError: true,
+            expectedErr: domainErrors.ErrInvalidInput,
+        },
+        {
+            name: "異常系: データベースエラー",
+            id:   1,
+            input: UpdateItemInput{
+                Name: strPtr("新しい名前"),
+            },
+            setupMock: func(mockRepo *MockItemRepository) {
+                existingItem := &entity.Item{
+                    ID: 1, Name: "ロレックス", Category: "時計", Brand: "ROLEX", PurchasePrice: 1500000,
+                    PurchaseDate: "2023-01-01", CreatedAt: time.Now(), UpdatedAt: time.Now(),
+                }
+                mockRepo.On("FindByID", mock.Anything, int64(1)).Return(existingItem, nil).Once()
+                mockRepo.On("Update", mock.Anything, mock.AnythingOfType("*entity.Item")).Return((*entity.Item)(nil), domainErrors.ErrDatabaseError).Once()
+            },
+            expectError: true,
+        },
+    }
+
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            mockRepo := new(MockItemRepository)
+            tt.setupMock(mockRepo)
+            usecase := NewItemUsecase(mockRepo)
+
+            ctx := context.Background()
+            updatedItem, err := usecase.UpdateItem(ctx, tt.id, tt.input)
+
+            if tt.expectError {
+                assert.Error(t, err)
+                if tt.expectedErr != nil {
+                    assert.ErrorIs(t, err, tt.expectedErr)
+                }
+                assert.Nil(t, updatedItem)
+            } else {
+                assert.NoError(t, err)
+                assert.NotNil(t, updatedItem)
+                assert.Equal(t, tt.id, updatedItem.ID)
+
+                if tt.input.Name != nil {
+                    assert.Equal(t, *tt.input.Name, updatedItem.Name)
+                }
+                if tt.input.Brand != nil {
+                    assert.Equal(t, *tt.input.Brand, updatedItem.Brand)
+                }
+                if tt.input.PurchasePrice != nil {
+                    assert.Equal(t, *tt.input.PurchasePrice, updatedItem.PurchasePrice)
+                }
+            }
+
+            mockRepo.AssertExpectations(t)
+        })
+    }
+}
+
+
+// 💡 ユーティリティ関数: 文字列のポインタを生成
+func strPtr(s string) *string {
+    return &s
+}
+
+// 💡 ユーティリティ関数: 整数のポインタを生成
+func intPtr(i int) *int {
+    return &i
 }

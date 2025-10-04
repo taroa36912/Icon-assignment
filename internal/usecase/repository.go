@@ -17,6 +17,10 @@ type ItemRepository interface {
 	// Create creates a new item and returns it with the generated ID
 	Create(ctx context.Context, item *entity.Item) (*entity.Item, error)
 
+	// Update updates an existing item. It returns the updated item or an error.
+    Update(ctx context.Context, item *entity.Item) (*entity.Item, error) // 💡追記
+
+
 	// Delete deletes an item by ID
 	Delete(ctx context.Context, id int64) error
 

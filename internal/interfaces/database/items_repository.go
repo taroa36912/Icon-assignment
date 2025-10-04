@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"time"
+	"strings"
 
 	"Aicon-assignment/internal/domain/entity"
 	domainErrors "Aicon-assignment/internal/domain/errors"
@@ -136,6 +137,65 @@ func (r *ItemRepository) GetSummaryByCategory(ctx context.Context) (map[string]i
 	}
 
 	return summary, nil
+}
+
+// 💡 新規追加: Updateメソッド (PATCH対応)
+func (r *ItemRepository) Update(ctx context.Context, item *entity.Item) (*entity.Item, error) {
+    // PATCHリクエストは部分更新であるため、動的にクエリを構築する
+    // ここでは、更新対象フィールド（name, brand, purchase_price）がitemに設定されていると仮定する
+    
+    // UPDATE句とWHERE句の基本を定義
+    updates := []string{}
+    params := []interface{}{}
+
+    // 更新対象フィールドのチェックとクエリの構築
+    // 注意: 本来、entity.Itemはnilを許容するポインタ型フィールドを持つべきですが、
+    // ここではユースケース層から渡されたitemが更新対象フィールドのみを持つと仮定して進めます。
+    
+    if item.Name != "" {
+        updates = append(updates, "name = ?")
+        params = append(params, item.Name)
+    }
+    if item.Brand != "" {
+        updates = append(updates, "brand = ?")
+        params = append(params, item.Brand)
+    }
+    if item.PurchasePrice >= 0 { // 0円以上の場合は更新対象とする（値が設定されたとみなす）
+        updates = append(updates, "purchase_price = ?")
+        params = append(params, item.PurchasePrice)
+    }
+    
+    // updated_at は必ず更新する
+    updates = append(updates, "updated_at = ?")
+    params = append(params, time.Now())
+
+    if len(updates) == 1 && updates[0] == "updated_at = ?" {
+        // 更新対象フィールドがない場合は、処理を行わないかエラーとする
+        // 今回はユースケース層でチェック済みのため、ここでは更新対象が少なくとも一つあると仮定する
+        // 念のため、更新しない場合は元のアイテムを返す
+        return r.FindByID(ctx, item.ID)
+    }
+
+    // SQLクエリの構築
+    query := fmt.Sprintf("UPDATE items SET %s WHERE id = ?", strings.Join(updates, ", "))
+    params = append(params, item.ID) // IDをWHERE句のパラメータとして追加
+
+    result, err := r.Execute(ctx, query, params...)
+    if err != nil {
+        return nil, fmt.Errorf("%w: failed to execute update: %s", domainErrors.ErrDatabaseError, err.Error())
+    }
+
+    rowsAffected, err := result.RowsAffected()
+    if err != nil {
+        return nil, fmt.Errorf("%w: failed to get rows affected: %s", domainErrors.ErrDatabaseError, err.Error())
+    }
+
+    if rowsAffected == 0 {
+        return nil, domainErrors.ErrItemNotFound
+    }
+
+    // 更新後のアイテムを取得して返す
+    return r.FindByID(ctx, item.ID)
 }
 
 func scanItem(scanner interface {
