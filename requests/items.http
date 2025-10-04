@@ -29,12 +29,22 @@ GET http://localhost:8080/items/summary
 DELETE http://localhost:8080/items/1
 
 
-### Update an item (PATCH)
+### Update all fields of an item (PATCH)
 # @prompt id 2
 PATCH http://localhost:8080/items/2
 Content-Type: application/json
 
 {
-    "name": "ロレックス デイトナ コンビ",
-    "purchase_price": 1800000
+    "name": "ロレックス デイトナ コンビ2",
+    "brand": "ROLEX-CH",
+    "purchase_price": 2000000
+}
+
+### Update only the name field (PATCH)
+# @prompt id 2
+PATCH http://localhost:8080/items/2
+Content-Type: application/json
+
+{
+    "name": "ロレックス サブマリーナ"
 }
